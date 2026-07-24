@@ -693,15 +693,9 @@ function statusFlags(key){
   const pending = PENDING[key];
   if(!pending && old.priceKg == null && old.priceUnit == null) flags.push("missing");
 
-  // "unfilled" = un prix affiche réellement "vide" à l'écran : soit le produit
-  // n'a aucun prix du tout (les deux champs vides), soit un champ précis est
-  // vide alors qu'une correspondance a été trouvée pour ce champ. On ne flag
-  // PAS un champ juste parce que l'autre type de prix ne s'applique pas à ce
-  // produit (ex : un article vendu à l'unité n'aura jamais de prix au kg).
-  const bothEmpty = old.priceKg == null && old.priceUnit == null;
-  const kgVide = old.priceKg == null && pending && pending.priceKg != null;
-  const unitVide = old.priceUnit == null && pending && pending.priceUnit != null;
-  if(bothEmpty || kgVide || unitVide) flags.push("unfilled");
+  // "unfilled" = les DEUX prix (unité ET kg) sont vides, peu importe si une
+  // correspondance a été trouvée entre-temps (pas encore validée).
+  if(old.priceKg == null && old.priceUnit == null) flags.push("unfilled");
 
   return flags;
 }
