@@ -553,6 +553,7 @@ function statusFlags(key){
   if(STATUS[key] === "error") flags.push("error");
   const old = RAW[key];
   if(!PENDING[key] && old.priceKg == null && old.priceUnit == null) flags.push("missing");
+  if(old.priceKg == null || old.priceUnit == null) flags.push("unfilled");
   return flags;
 }
 
@@ -678,7 +679,8 @@ function buildChips(){
     { status: "pending", label: "Nouveau prix trouvé" },
     { status: "empty", label: "Sans résultat" },
     { status: "error", label: "Dataset non chargé" },
-    { status: "missing", label: "Sans prix du tout" }
+    { status: "missing", label: "Sans prix du tout" },
+    { status: "unfilled", label: "Prix non renseigné" }
   ];
   chipsEl.innerHTML = defs.map(d => `<span class="chip" data-status="${d.status}">${d.label}</span>`).join("");
   chipsEl.querySelectorAll(".chip").forEach(chip => {
