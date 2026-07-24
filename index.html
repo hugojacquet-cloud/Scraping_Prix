@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relevé de prix — Carnet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper: #EEF1EA;
+    --paper-line: #DCE1D6;
+    --ink: #202920;
+    --ink-soft: #55604F;
+    --meta: #8C8879;
+    --stamp-red: #A93B2E;
+    --stamp-blue: #2E5FA9;
+    --stamp-green: #4C6E4C;
+    --card: #F7F8F3;
+    --border: #CBD2C2;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: var(--paper);
+    background-image: repeating-linear-gradient(to bottom, transparent 0px, transparent 27px, var(--paper-line) 28px);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 0 0 80px 0;
+  }
+  .wrap{ max-width: 960px; margin: 0 auto; padding: 48px 24px 0; }
+
+  header{ background: var(--card); border: 1px solid var(--border); padding: 32px 32px 24px; position: relative; }
+  header::after{
+    content: ""; position: absolute; left: 0; right: 0; bottom: -9px; height: 18px;
+    background: radial-gradient(circle at 9px 0, transparent 9px, var(--paper) 9.5px) repeat-x;
+    background-size: 18px 18px;
+  }
+  .eyebrow{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.12em; color:var(--stamp-red); text-transform:uppercase; margin:0 0 10px; }
+  h1{ font-family:'JetBrains Mono',monospace; font-weight:800; font-size:clamp(28px,4vw,38px); letter-spacing:-.01em; margin:0 0 6px; }
+  .subtitle{ color:var(--ink-soft); font-size:14.5px; margin:0; }
+  .meta-row{ display:flex; flex-wrap:wrap; gap:24px; margin-top:22px; padding-top:18px; border-top:1px dashed var(--border); font-family:'JetBrains Mono',monospace; font-size:12.5px; }
+  .meta-item .k{ color:var(--meta); display:block; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; margin-bottom:3px; }
+  .meta-item .v{ font-weight:700; }
+
+  .btn{
+    font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.03em;
+    padding:10px 16px; background:var(--ink); color:var(--paper); border:1px solid var(--ink);
+    cursor:pointer; transition:opacity .15s;
+  }
+  .btn:hover{ opacity:.85; }
+  .btn:disabled{ opacity:.45; cursor:default; }
+  .btn.secondary{ background:var(--card); color:var(--ink); border:1px solid var(--border); }
+  .btn.danger{ background:var(--card); color:var(--stamp-red); border:1px solid var(--stamp-red); }
+
+  .file-bar{ margin-top:36px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .file-status{ font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--ink-soft); }
+
+  .controls{ margin-top:20px; display:flex; flex-wrap:wrap; gap:12px 10px; align-items:center; }
+  .search{ flex:1 1 220px; font-family:'JetBrains Mono',monospace; font-size:14px; padding:11px 14px; border:1px solid var(--border); background:var(--card); color:var(--ink); outline:none; }
+  .search::placeholder{ color:var(--meta); }
+  .search:focus{ border-color:var(--ink-soft); }
+  select{ font-family:'JetBrains Mono',monospace; font-size:12.5px; padding:10px; border:1px solid var(--border); background:var(--card); color:var(--ink); outline:none; }
+
+  .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .chip{
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.03em;
+    padding:6px 12px; border:1px solid var(--border); background:var(--card); color:var(--ink-soft);
+    cursor:pointer; user-select:none; transition:background .15s,color .15s,border-color .15s;
+  }
+  .chip:hover{ border-color:var(--ink-soft); }
+  .chip.active{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+
+  .refresh-bar{ margin-top:22px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .refresh-status{ font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--ink-soft); }
+  .refresh-summary{ margin-top:14px; font-family:'JetBrains Mono',monospace; font-size:12.5px; padding:14px 16px; background:var(--card); border:1px solid var(--border); display:none; line-height:1.7; }
+  .refresh-summary.show{ display:block; }
+  .refresh-summary .ok{ color:var(--stamp-green); font-weight:700; }
+  .refresh-summary .warn-empty{ color:var(--stamp-red); font-weight:700; }
+  .refresh-summary .warn-error{ color:var(--stamp-blue); font-weight:700; }
+
+  .rows{ background:var(--card); border:1px solid var(--border); margin-top:30px; }
+  .row{ display:flex; flex-direction:column; padding:13px 16px; border-bottom:1px dashed var(--border); opacity:0; animation:rise .3s ease forwards; }
+  .row-main{ display:flex; align-items:center; gap:14px; width:100%; }
+  .row:last-child{ border-bottom:none; }
+  .row:hover{ background:#EFF2E9; }
+  @keyframes rise{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+
+  .name-col{ flex:1 1 auto; min-width:0; }
+  .tag-input{
+    font-family:'Inter',sans-serif; font-size:14.5px; font-weight:500; color:var(--ink);
+    border:1px solid transparent; background:transparent; padding:3px 4px; width:100%; outline:none;
+    border-radius:2px;
+  }
+  .tag-input:hover{ border-color:var(--border); }
+  .tag-input:focus{ border-color:var(--ink-soft); background:#fff; }
+  .slug{ display:block; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--meta); margin:2px 0 0 4px; }
+  .match-toggle{
+    display:inline-block; font-family:'Inter',sans-serif; font-size:11.5px; color:var(--stamp-blue); margin:3px 0 0 4px;
+    cursor:pointer; user-select:none;
+  }
+  .match-toggle:hover{ text-decoration:underline; }
+  .match-list{
+    margin:14px 0 4px; border:1px solid var(--border); background:var(--paper);
+    max-height:60vh; overflow-y:auto; width:100%;
+  }
+  .match-item{
+    display:flex; align-items:center; gap:16px; padding:14px 16px;
+    border-bottom:1px dashed var(--border); cursor:pointer;
+  }
+  .match-item:last-child{ border-bottom:none; }
+  .match-item:hover{ background:#E4E9DC; }
+  .match-item .ds-code{ font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--meta); width:150px; flex-shrink:0; word-break:break-all; }
+  .match-item .ds-name{ flex:1 1 auto; font-size:15px; font-weight:500; min-width:0; color:var(--ink); line-height:1.4; }
+  .match-item .ds-brand{ display:block; font-size:12px; color:var(--ink-soft); margin-top:3px; }
+  .match-item .ds-price{ font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:700; width:170px; text-align:right; flex-shrink:0; line-height:1.6; }
+  .match-item .ds-kg{ display:block; font-size:12px; font-weight:700; color:var(--stamp-green); }
+  .match-item .ds-no-kg{ font-family:'Inter',sans-serif; font-size:10.5px; font-weight:400; color:var(--meta); font-style:italic; }
+  .match-item .ds-country{ display:block; font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:400; color:var(--meta); margin-top:2px; }
+  .match-truncated{ padding:12px 16px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--meta); }
+  @media (max-width:640px){
+    .match-item{ flex-wrap:wrap; gap:4px 12px; }
+    .match-item .ds-code{ width:auto; font-size:10.5px; order:1; }
+    .match-item .ds-name{ width:100%; order:0; flex-basis:100%; }
+    .match-item .ds-price{ width:auto; margin-left:auto; order:2; text-align:right; line-height:1.5; }
+  }
+
+  .tag-status{
+    font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.04em; text-transform:uppercase;
+    padding:2px 7px; margin-left:8px; border:1px solid currentColor; vertical-align:middle;
+  }
+  .tag-status.empty{ color:var(--stamp-red); }
+  .tag-status.error{ color:var(--stamp-blue); }
+
+  .prices{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+  .price-pill{ font-family:'JetBrains Mono',monospace; font-size:13.5px; font-weight:700; padding:4px 10px; background:#E4E9DC; color:var(--ink); white-space:nowrap; }
+  .price-pill.empty{ background:transparent; border:1px dashed var(--border); color:var(--meta); font-weight:400; font-size:11.5px; }
+  .price-pill.compare{ cursor:pointer; border:1px solid transparent; transition:opacity .15s,border-color .15s; }
+  .price-pill.compare.dim{ opacity:.4; }
+  .price-pill.compare.selected{ border-color:var(--ink); }
+  .price-pill.compare.new{ background:#DCEEDC; color:#245A24; }
+  .price-pill.compare.new.selected{ border-color:var(--stamp-green); }
+
+  .updated{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--meta); width:76px; text-align:right; flex-shrink:0; }
+
+  .row-actions{ display:flex; gap:6px; flex-shrink:0; }
+  .icon-btn{
+    font-family:'JetBrains Mono',monospace; font-size:11px; width:26px; height:26px; line-height:24px; text-align:center;
+    border:1px solid var(--border); background:var(--card); cursor:pointer; color:var(--ink-soft); padding:0;
+  }
+  .icon-btn:hover{ border-color:var(--ink-soft); color:var(--ink); }
+  .icon-btn.delete:hover{ border-color:var(--stamp-red); color:var(--stamp-red); }
+  .icon-btn:disabled{ opacity:.4; cursor:default; }
+
+  .empty-state{ padding:50px 20px; text-align:center; color:var(--meta); font-size:14px; }
+
+  .tabs{ display:flex; gap:6px; margin-top:28px; border-bottom:1px solid var(--border); }
+  .tab-btn{
+    font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.03em;
+    padding:10px 16px; background:transparent; color:var(--ink-soft); border:none; border-bottom:2px solid transparent;
+    cursor:pointer; margin-bottom:-1px;
+  }
+  .tab-btn:hover{ color:var(--ink); }
+  .tab-btn.active{ color:var(--ink); border-bottom-color:var(--ink); font-weight:700; }
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
+
+  .ds-stats{ font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--ink-soft); margin-top:16px; }
+  .ds-table{ background:var(--card); border:1px solid var(--border); margin-top:14px; }
+  .ds-row{ display:flex; align-items:flex-start; gap:14px; padding:11px 16px; border-bottom:1px dashed var(--border); }
+  .ds-row:last-child{ border-bottom:none; }
+  .ds-row:hover{ background:#EFF2E9; }
+  .ds-row .ds-code{ font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--meta); width:130px; flex-shrink:0; word-break:break-all; }
+  .ds-row .ds-name{ flex:1 1 auto; font-size:14px; font-weight:500; min-width:0; }
+  .ds-row .ds-brand{ display:block; font-size:11.5px; color:var(--ink-soft); margin-top:2px; }
+  .ds-row .ds-price{ font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; width:90px; text-align:right; flex-shrink:0; }
+  @media (max-width:640px){ .ds-row .ds-code{ width:90px; font-size:10.5px; } }
+
+  footer{ max-width:960px; margin:36px auto 0; padding:0 24px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--meta); }
+
+  @media (max-width:560px){ .updated{ display:none; } .wrap{ padding:32px 14px 0; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Carnet de prix — usage perso</p>
+    <h1>Relevé de prix alimentaires</h1>
+    <p class="subtitle">Correspondance via le dataset GitHub webtruffle/retail-product-catalog-prices (snapshot quotidien), à partir du champ "tag" de chaque produit.</p>
+    <div class="meta-row">
+      <div class="meta-item"><span class="k">Produits chargés</span><span class="v" id="statCount">—</span></div>
+      <div class="meta-item"><span class="k">Prix renseignés</span><span class="v" id="statFilled">—</span></div>
+      <div class="meta-item"><span class="k">Dernière mise à jour</span><span class="v" id="statUpdated">—</span></div>
+    </div>
+  </header>
+
+  <div class="file-bar">
+    <button class="btn" id="importBtn">Importer prix.json</button>
+    <button class="btn danger" id="clearBtn">Vider la liste</button>
+    <input type="file" id="fileInput" accept="application/json" style="display:none;">
+    <span class="file-status" id="fileStatus">Aucun fichier chargé — clique sur "Importer prix.json".</span>
+  </div>
+
+  <div class="refresh-bar">
+    <button class="btn" id="loadDatasetBtn">Importer le dataset (.jsonl / .json)</button>
+    <input type="file" id="datasetFileInput" accept=".jsonl,.ndjson,.json,application/json" style="display:none;">
+    <select id="countrySelect">
+      <option value="FR">Pays : France uniquement</option>
+      <option value="">Pays : tous</option>
+    </select>
+    <button class="btn" id="refreshBtn" disabled>Faire correspondre les prix</button>
+    <span class="refresh-status" id="refreshStatus"></span>
+    <button class="btn secondary" id="downloadBtn" style="display:none;">Exporter prixUpdate.json</button>
+  </div>
+  <div class="refresh-summary" id="refreshSummary"></div>
+
+  <div class="tabs" id="tabs">
+    <button class="tab-btn active" data-tab="prices">Mes produits</button>
+    <button class="tab-btn" data-tab="dataset">Dataset (codes-barres ↔ noms)</button>
+  </div>
+
+  <div id="panel-prices" class="tab-panel active">
+    <div class="controls">
+      <input class="search" id="search" type="text" placeholder="Rechercher un produit…">
+      <select id="sortSelect">
+        <option value="name">Trier : nom (A→Z)</option>
+        <option value="kg_desc">Trier : prix/kg décroissant</option>
+        <option value="kg_asc">Trier : prix/kg croissant</option>
+        <option value="unit_desc">Trier : prix/unité décroissant</option>
+        <option value="unit_asc">Trier : prix/unité croissant</option>
+        <option value="recent">Trier : maj récente</option>
+      </select>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div id="content"></div>
+  </div>
+
+  <div id="panel-dataset" class="tab-panel">
+    <div class="controls">
+      <input class="search" id="datasetSearch" type="text" placeholder="Chercher un nom de produit ou un code-barres…">
+    </div>
+    <div class="ds-stats" id="datasetStats">Aucun dataset chargé — importe-le avec le bouton ci-dessus.</div>
+    <div id="datasetTableWrap"></div>
+  </div>
+
+</div>
+
+<footer>
+  * Télécharge d'abord <code>retail-product-prices.jsonl</code> (ou <code>.json</code>) depuis
+  <a href="https://github.com/webtruffle/retail-product-catalog-prices/releases/latest" target="_blank" rel="noopener">la dernière release GitHub</a>,
+  puis importe-le ici avec "Importer le dataset" — tout est ensuite lu et indexé localement, sans réseau.
+  Onglet "Mes produits" : fait correspondre tes tags aux prix du dataset. Onglet "Dataset" : parcours directement la correspondance code-barres ↔ nom de produit telle qu'elle existe dans le fichier importé.
+  Données : webtruffle/retail-product-catalog-prices (ODbL 1.0, Open Food Facts / Open Prices / OpenStreetMap).
+</footer>
+
+<script>
+let RAW = {};       // données chargées depuis prix.json : { key: {tag, id, priceUnit, priceKg, updatedAt} }
+let PENDING = {};   // nouveaux prix trouvés, en attente de validation : { key: {priceUnit, priceKg} }
+let SELECTION = {}; // choix par produit/champ : 'old' ou 'new'
+let STATUS = {};    // 'empty' | 'error' par produit
+let MATCHED_SAMPLES = {}; // key -> { count, records: [...] } — la liste complète des correspondances, pour le menu déroulant
+let EXPANDED_KEYS = new Set(); // clés dont le menu déroulant de correspondances est ouvert
+
+// --- Dataset local (export du dépôt webtruffle/retail-product-catalog-prices) ---
+// On importe un fichier .jsonl/.json téléchargé à la main depuis une release GitHub,
+// on le lit et on l'indexe entièrement en local (aucun appel réseau, aucun souci de CORS).
+
+let DATASET_RECORDS = [];       // [{ name, price, currency, qty, qtyUnit, country }]
+let DATASET_TOKEN_INDEX = null; // Map<token, Set<recordIndex>>
+let DATASET_LOADED = false;
+
+function stripAccents(s){
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function tokenize(name){
+  return stripAccents(name.toLowerCase())
+    .split(/[^a-z0-9]+/)
+    .filter(t => t.length >= 2);
+}
+
+function processRecordObject(obj){
+  const name = obj.product_name;
+  const price = parseFloat(obj.price);
+  if(!name || !isFinite(price) || price <= 0) return false;
+  if(obj.currency && obj.currency !== "EUR") return false;
+  const qty = obj.product_quantity !== null && obj.product_quantity !== undefined && obj.product_quantity !== ""
+    ? parseFloat(obj.product_quantity) : null;
+  indexRecord({
+    name,
+    code: obj.product_code || "",
+    brands: obj.brands || "",
+    price,
+    qty: isFinite(qty) ? qty : null,
+    qtyUnit: obj.product_quantity_unit || "",
+    country: obj.country_code || ""
+  });
+  return true;
+}
+
+function indexRecord(rec){
+  const idx = DATASET_RECORDS.length;
+  DATASET_RECORDS.push(rec);
+  const seen = new Set();
+  for(const tok of tokenize(rec.name)){
+    if(seen.has(tok)) continue;
+    seen.add(tok);
+    let set = DATASET_TOKEN_INDEX.get(tok);
+    if(!set){ set = new Set(); DATASET_TOKEN_INDEX.set(tok, set); }
+    set.add(idx);
+  }
+}
+
+async function loadDatasetFromFile(file){
+  const btn = document.getElementById("loadDatasetBtn");
+  const refreshBtn = document.getElementById("refreshBtn");
+  const status = document.getElementById("refreshStatus");
+  const summary = document.getElementById("refreshSummary");
+
+  btn.disabled = true;
+  summary.classList.remove("show");
+  DATASET_RECORDS = [];
+  DATASET_TOKEN_INDEX = new Map();
+  DATASET_LOADED = false;
+
+  const isJsonArray = /\.json$/i.test(file.name) && !/\.jsonl$|\.ndjson$/i.test(file.name);
+  let recordCount = 0, keptCount = 0;
+
+  try{
+    if(isJsonArray){
+      // fichier .json : un unique tableau JSON — on le charge entier puis on itère
+      status.textContent = `Lecture de ${file.name}…`;
+      const text = await file.text();
+      const arr = JSON.parse(text);
+      if(!Array.isArray(arr)) throw new Error("le fichier .json doit contenir un tableau d'observations");
+      for(const obj of arr){
+        recordCount++;
+        if(processRecordObject(obj)) keptCount++;
+      }
+      status.textContent = `Lecture terminée : ${recordCount} lignes lues.`;
+    } else {
+      // .jsonl / .ndjson : une observation JSON par ligne, lue en flux pour rester léger en mémoire
+      const reader = file.stream().getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      let bytesRead = 0;
+
+      const processLine = (line) => {
+        line = line.trim();
+        if(!line) return;
+        recordCount++;
+        let obj;
+        try{ obj = JSON.parse(line); }catch(e){ return; }
+        if(processRecordObject(obj)) keptCount++;
+      };
+
+      while(true){
+        const { done, value } = await reader.read();
+        if(done) break;
+        bytesRead += value.length;
+        buffer += decoder.decode(value, { stream: true });
+        let nlIndex;
+        while((nlIndex = buffer.indexOf("\n")) >= 0){
+          processLine(buffer.slice(0, nlIndex));
+          buffer = buffer.slice(nlIndex + 1);
+        }
+        status.textContent = `Lecture… ${(bytesRead/1e6).toFixed(1)} Mo, ${recordCount} lignes lues, ${keptCount} conservées.`;
+      }
+      processLine(buffer);
+    }
+  }catch(e){
+    status.textContent = "Fichier invalide.";
+    summary.classList.add("show");
+    summary.innerHTML = `<span class="warn-error">Impossible de lire ce fichier : ${e.message}</span><br>
+      Vérifie que c'est bien <code>retail-product-prices.jsonl</code> ou <code>.json</code> tel que téléchargé depuis la release.`;
+    btn.disabled = false;
+    return;
+  }
+
+  DATASET_LOADED = true;
+  btn.disabled = false;
+  refreshBtn.disabled = false;
+  status.textContent = `Dataset chargé depuis ${file.name} : ${keptCount} observations indexées (sur ${recordCount} lignes).`;
+  if(typeof updateDatasetStats === "function") updateDatasetStats();
+  if(typeof currentTab !== "undefined" && currentTab === "dataset") renderDatasetTab();
+}
+
+function median(arr){
+  if(!arr.length) return null;
+  const s = [...arr].sort((a,b) => a-b);
+  const mid = Math.floor(s.length/2);
+  return s.length % 2 ? s[mid] : (s[mid-1] + s[mid]) / 2;
+}
+
+function pricePerKgFromRecord(rec){
+  if(rec.qty === null || !rec.qtyUnit) return null;
+  const gramsMap = { g: rec.qty, kg: rec.qty*1000, l: rec.qty*1000, ml: rec.qty, cl: rec.qty*10 };
+  const grams = gramsMap[rec.qtyUnit.toLowerCase()];
+  return grams ? Math.round((rec.price / (grams/1000)) * 100) / 100 : null;
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+
+function fmtPrice(v, suffix){
+  if(v === null || v === undefined) return null;
+  return v.toFixed(2).replace(".", ",") + " €" + suffix;
+}
+
+// Cherche dans DATASET_RECORDS les enregistrements dont le nom contient tous les tokens du tag
+function findMatchingRecords(tag, countryFilter){
+  const toks = tokenize(tag);
+  if(toks.length === 0 || !DATASET_TOKEN_INDEX) return [];
+  const sets = toks.map(t => DATASET_TOKEN_INDEX.get(t) || new Set());
+  sets.sort((a,b) => a.size - b.size);
+  if(sets[0].size === 0) return [];
+  let candidates = [...sets[0]];
+  for(let i = 1; i < sets.length; i++){
+    const s = sets[i];
+    candidates = candidates.filter(idx => s.has(idx));
+    if(candidates.length === 0) return [];
+  }
+  return candidates
+    .map(idx => DATASET_RECORDS[idx])
+    .filter(rec => !countryFilter || rec.country === countryFilter);
+}
+
+function applyResult(key, records){
+  if(records.length === 0){ STATUS[key] = "empty"; delete MATCHED_SAMPLES[key]; return "empty"; }
+  const unitPrices = records.map(r => r.price).filter(p => p != null);
+  const kgPrices = records.map(pricePerKgFromRecord).filter(p => p != null);
+  const newUnit = unitPrices.length ? Math.round(median(unitPrices)*100)/100 : null;
+  const newKg = kgPrices.length ? Math.round(median(kgPrices)*100)/100 : null;
+  if(newUnit === null && newKg === null){ STATUS[key] = "empty"; delete MATCHED_SAMPLES[key]; return "empty"; }
+
+  delete STATUS[key];
+  PENDING[key] = { priceUnit: newUnit, priceKg: newKg };
+  SELECTION[key] = SELECTION[key] || {};
+  if(newUnit !== null && !SELECTION[key].priceUnit) SELECTION[key].priceUnit = "old";
+  if(newKg !== null && !SELECTION[key].priceKg) SELECTION[key].priceKg = "old";
+
+  MATCHED_SAMPLES[key] = { count: records.length, records };
+  return "found";
+}
+
+function matchAllProducts(){
+  const status = document.getElementById("refreshStatus");
+  const summary = document.getElementById("refreshSummary");
+  const keys = Object.keys(RAW);
+  if(keys.length === 0) return;
+  if(!DATASET_LOADED){
+    status.textContent = "Charge d'abord le dataset GitHub.";
+    return;
+  }
+
+  const countryFilter = document.getElementById("countrySelect").value;
+  let found = 0, empty = 0;
+
+  for(const key of keys){
+    const tag = RAW[key].tag || key;
+    const records = findMatchingRecords(tag, countryFilter);
+    const outcome = applyResult(key, records);
+    if(outcome === "empty") empty++; else found++;
+  }
+
+  status.textContent = "Terminé.";
+  summary.classList.add("show");
+  summary.innerHTML = `
+    <span class="ok">${found} produit(s) avec un prix trouvé dans le dataset</span> — clique sur une pastille verte pour la retenir.<br>
+    <span class="warn-empty">${empty} sans résultat</span> (en rouge dans la liste, essaie de reformuler le tag).
+  `;
+  render();
+  document.getElementById("downloadBtn").style.display = "inline-block";
+}
+
+function rescanOne(key){
+  const input = document.querySelector(`.tag-input[data-key="${CSS.escape(key)}"]`);
+  const tag = (input ? input.value : RAW[key].tag || "").trim();
+  if(!tag) return;
+  RAW[key].tag = tag;
+  if(!DATASET_LOADED){
+    STATUS[key] = "error";
+    render();
+    return;
+  }
+  const countryFilter = document.getElementById("countrySelect").value;
+  const records = findMatchingRecords(tag, countryFilter);
+  applyResult(key, records);
+  render();
+}
+
+function deleteProduct(key){
+  const label = (RAW[key] && RAW[key].tag) || key;
+  if(!confirm(`Supprimer "${label}" de la liste ? Il ne sera pas inclus dans l'export.`)) return;
+  delete RAW[key];
+  delete PENDING[key];
+  delete MATCHED_SAMPLES[key];
+  EXPANDED_KEYS.delete(key);
+  delete SELECTION[key];
+  delete STATUS[key];
+  updateStats();
+  render();
+}
+
+function exportUpdated(){
+  const today = new Date().toISOString().slice(0,10);
+  const result = {};
+  for(const key of Object.keys(RAW)){
+    const old = RAW[key];
+    const pending = PENDING[key];
+    const sel = SELECTION[key] || {};
+    const keptNewUnit = pending && pending.priceUnit !== null && sel.priceUnit === "new";
+    const keptNewKg = pending && pending.priceKg !== null && sel.priceKg === "new";
+    result[key] = {
+      tag: old.tag,
+      id: old.id || key,
+      priceUnit: keptNewUnit ? pending.priceUnit : (old.priceUnit ?? null),
+      priceKg: keptNewKg ? pending.priceKg : (old.priceKg ?? null),
+      updatedAt: (keptNewUnit || keptNewKg) ? today : (old.updatedAt || null)
+    };
+  }
+  const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "prixUpdate.json";
+  a.click();
+}
+
+function buildFieldHtml(key, field, suffix, oldVal){
+  const pending = PENDING[key];
+  const newVal = pending ? pending[field] : null;
+
+  if(newVal === null || newVal === undefined){
+    return oldVal != null ? `<span class="price-pill">${fmtPrice(oldVal, suffix)}</span>` : "";
+  }
+
+  const sel = (SELECTION[key] && SELECTION[key][field]) || "old";
+  const oldLabel = oldVal != null ? fmtPrice(oldVal, suffix) : "vide";
+  return `
+    <span class="price-pill compare ${sel === "old" ? "selected" : "dim"}" data-key="${key}" data-field="${field}" data-choice="old" title="Garder l'ancien prix">${oldLabel}</span>
+    <span class="price-pill compare new ${sel === "new" ? "selected" : "dim"}" data-key="${key}" data-field="${field}" data-choice="new" title="Garder le nouveau prix">${fmtPrice(newVal, suffix)}</span>
+  `;
+}
+
+function statusFlags(key){
+  const flags = [];
+  if(PENDING[key]) flags.push("pending");
+  if(STATUS[key] === "empty") flags.push("empty");
+  if(STATUS[key] === "error") flags.push("error");
+  const old = RAW[key];
+  if(!PENDING[key] && old.priceKg == null && old.priceUnit == null) flags.push("missing");
+  return flags;
+}
+
+function render(){
+  const content = document.getElementById("content");
+  const totalLoaded = Object.keys(RAW).length;
+
+  if(totalLoaded === 0){
+    content.innerHTML = '<div class="rows"><div class="empty-state">Aucun produit chargé. Importe un fichier prix.json pour commencer.</div></div>';
+    return;
+  }
+
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const sortMode = document.getElementById("sortSelect").value;
+  const activeChips = [...document.querySelectorAll(".chip.active")].map(c => c.dataset.status);
+
+  let entries = Object.entries(RAW).map(([key, v]) => ({ key, ...v }));
+
+  entries = entries.filter(e => {
+    const name = (e.tag || e.key).toLowerCase();
+    const matchesSearch = q === "" || name.includes(q) || e.key.toLowerCase().includes(q);
+    const flags = statusFlags(e.key);
+    const matchesChips = activeChips.length === 0 || activeChips.some(c => flags.includes(c));
+    return matchesSearch && matchesChips;
+  });
+
+  const sorters = {
+    name: (a,b) => (a.tag||a.key).localeCompare(b.tag||b.key, 'fr'),
+    kg_desc: (a,b) => (b.priceKg ?? -1) - (a.priceKg ?? -1),
+    kg_asc: (a,b) => (a.priceKg ?? Infinity) - (b.priceKg ?? Infinity),
+    unit_desc: (a,b) => (b.priceUnit ?? -1) - (a.priceUnit ?? -1),
+    unit_asc: (a,b) => (a.priceUnit ?? Infinity) - (b.priceUnit ?? Infinity),
+    recent: (a,b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")
+  };
+  entries.sort(sorters[sortMode]);
+
+  if(entries.length === 0){
+    content.innerHTML = '<div class="rows"><div class="empty-state">Aucun produit ne correspond à ta recherche.</div></div>';
+    return;
+  }
+
+  const rowsEl = document.createElement("div");
+  rowsEl.className = "rows";
+
+  entries.forEach((e, i) => {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.animationDelay = (i * 12) + "ms";
+
+    const pillsHtml = [
+      buildFieldHtml(e.key, "priceKg", "/kg", e.priceKg),
+      buildFieldHtml(e.key, "priceUnit", "/u", e.priceUnit)
+    ].filter(Boolean).join("");
+
+    let statusBadge = "";
+    if(STATUS[e.key] === "empty") statusBadge = '<span class="tag-status empty">sans résultat</span>';
+    else if(STATUS[e.key] === "error") statusBadge = '<span class="tag-status error">dataset non chargé</span>';
+
+    const sample = MATCHED_SAMPLES[e.key];
+    let matchToggleHtml = "";
+    let matchListHtml = "";
+    if(sample){
+      const isOpen = EXPANDED_KEYS.has(e.key);
+      matchToggleHtml = `<span class="match-toggle" data-key="${e.key}">${sample.count} correspondance(s) ${isOpen ? "▾" : "▸"}</span>`;
+      if(isOpen) matchListHtml = buildMatchListHtml(e.key, sample.records);
+    }
+
+    row.innerHTML = `
+      <div class="row-main">
+        <div class="name-col">
+          <input class="tag-input" data-key="${e.key}" value="${(e.tag || "").replace(/"/g,'&quot;')}">
+          ${statusBadge}
+          <span class="slug">${e.key}</span>
+          ${matchToggleHtml}
+        </div>
+        <div class="prices">${pillsHtml || '<span class="price-pill empty">— à renseigner</span>'}</div>
+        <div class="updated">${e.updatedAt || "—"}</div>
+        <div class="row-actions">
+          <button class="icon-btn rescan" data-key="${e.key}" title="Relancer le scan pour ce produit">↻</button>
+          <button class="icon-btn delete" data-key="${e.key}" title="Supprimer ce produit">✕</button>
+        </div>
+      </div>
+      ${matchListHtml}
+    `;
+    rowsEl.appendChild(row);
+  });
+
+  content.innerHTML = "";
+  content.appendChild(rowsEl);
+}
+
+const MATCH_LIST_DISPLAY_LIMIT = 200;
+
+function buildMatchListHtml(key, records){
+  const shown = records.slice(0, MATCH_LIST_DISPLAY_LIMIT);
+  const itemsHtml = shown.map((r, idx) => {
+    const kg = pricePerKgFromRecord(r);
+    const qtyLabel = (r.qty !== null && r.qtyUnit) ? `${r.qty} ${r.qtyUnit}` : "quantité inconnue";
+    const kgLabel = kg !== null
+      ? `${fmtPrice(kg, "/kg")}`
+      : `<span class="ds-no-kg">pas de prix/kg (${qtyLabel})</span>`;
+    return `
+    <div class="match-item" data-key="${key}" data-idx="${idx}" title="Cliquer pour utiliser ce prix">
+      <span class="ds-code">${escapeHtml(r.code || "—")}</span>
+      <span class="ds-name">${escapeHtml(r.name)}${r.brands ? `<span class="ds-brand">${escapeHtml(r.brands)}</span>` : ""}</span>
+      <span class="ds-price">
+        ${fmtPrice(r.price, "/u") || "—"}
+        <span class="ds-kg">${kgLabel}</span>
+        ${r.country ? `<span class="ds-country">${escapeHtml(r.country)}</span>` : ""}
+      </span>
+    </div>
+  `;
+  }).join("");
+  const truncatedNote = records.length > shown.length
+    ? `<div class="match-truncated">+ ${records.length - shown.length} autre(s) non affiché(s) — affine le tag pour réduire la liste.</div>`
+    : "";
+  return `<div class="match-list">${itemsHtml}${truncatedNote}</div>`;
+}
+
+function buildChips(){
+  const chipsEl = document.getElementById("chips");
+  const defs = [
+    { status: "pending", label: "Nouveau prix trouvé" },
+    { status: "empty", label: "Sans résultat" },
+    { status: "error", label: "Dataset non chargé" },
+    { status: "missing", label: "Sans prix du tout" }
+  ];
+  chipsEl.innerHTML = defs.map(d => `<span class="chip" data-status="${d.status}">${d.label}</span>`).join("");
+  chipsEl.querySelectorAll(".chip").forEach(chip => {
+    chip.addEventListener("click", () => { chip.classList.toggle("active"); render(); });
+  });
+}
+
+function updateStats(){
+  const values = Object.values(RAW);
+  const total = values.length;
+  const filled = values.filter(v => v.priceKg !== null || v.priceUnit !== null).length;
+  const dates = values.map(v => v.updatedAt).filter(Boolean).sort();
+  document.getElementById("statCount").textContent = total || "—";
+  document.getElementById("statFilled").textContent = total ? `${filled} / ${total}` : "—";
+  document.getElementById("statUpdated").textContent = dates.length ? dates[dates.length-1] : "—";
+}
+
+function updateFileStatus(text){
+  document.getElementById("fileStatus").textContent = text;
+}
+
+function init(data, sourceLabel){
+  RAW = data;
+  PENDING = {}; SELECTION = {}; STATUS = {}; MATCHED_SAMPLES = {}; EXPANDED_KEYS = new Set();
+  updateStats();
+  updateFileStatus(`${Object.keys(data).length} produits chargés depuis ${sourceLabel}.`);
+  document.getElementById("downloadBtn").style.display = "none";
+  document.getElementById("refreshSummary").classList.remove("show");
+  render();
+}
+
+function clearAll(){
+  if(!confirm("Vider la liste actuelle ? (le fichier prix.json sur ton disque n'est pas modifié)")) return;
+  RAW = {}; PENDING = {}; SELECTION = {}; STATUS = {}; MATCHED_SAMPLES = {}; EXPANDED_KEYS = new Set();
+  document.getElementById("fileInput").value = "";
+  document.getElementById("downloadBtn").style.display = "none";
+  document.getElementById("refreshSummary").classList.remove("show");
+  updateStats();
+  updateFileStatus('Aucun fichier chargé — clique sur "Importer prix.json".');
+  render();
+}
+
+document.getElementById("search").addEventListener("input", render);
+document.getElementById("sortSelect").addEventListener("change", render);
+document.getElementById("loadDatasetBtn").addEventListener("click", () => document.getElementById("datasetFileInput").click());
+document.getElementById("datasetFileInput").addEventListener("change", (ev) => {
+  const file = ev.target.files[0];
+  if(!file) return;
+  loadDatasetFromFile(file);
+});
+document.getElementById("refreshBtn").addEventListener("click", matchAllProducts);
+document.getElementById("downloadBtn").addEventListener("click", exportUpdated);
+document.getElementById("importBtn").addEventListener("click", () => document.getElementById("fileInput").click());
+document.getElementById("clearBtn").addEventListener("click", clearAll);
+
+document.getElementById("fileInput").addEventListener("change", (ev) => {
+  const file = ev.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{ init(JSON.parse(e.target.result), file.name); }
+    catch(err){ alert("Fichier JSON invalide : " + err.message); }
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById("content").addEventListener("click", (e) => {
+  const pill = e.target.closest(".price-pill.compare");
+  if(pill){
+    const { key, field, choice } = pill.dataset;
+    SELECTION[key] = SELECTION[key] || {};
+    SELECTION[key][field] = choice;
+    render();
+    return;
+  }
+  const toggle = e.target.closest(".match-toggle");
+  if(toggle){
+    const key = toggle.dataset.key;
+    if(EXPANDED_KEYS.has(key)) EXPANDED_KEYS.delete(key); else EXPANDED_KEYS.add(key);
+    render();
+    return;
+  }
+  const matchItem = e.target.closest(".match-item");
+  if(matchItem){
+    const { key, idx } = matchItem.dataset;
+    const sample = MATCHED_SAMPLES[key];
+    const record = sample && sample.records[Number(idx)];
+    if(record){
+      const newUnit = record.price != null ? Math.round(record.price*100)/100 : null;
+      const newKg = pricePerKgFromRecord(record);
+      if(newUnit !== null || newKg !== null){
+        PENDING[key] = { priceUnit: newUnit, priceKg: newKg };
+        SELECTION[key] = {};
+        if(newUnit !== null) SELECTION[key].priceUnit = "new";
+        if(newKg !== null) SELECTION[key].priceKg = "new";
+        delete STATUS[key];
+      }
+    }
+    EXPANDED_KEYS.delete(key);
+    render();
+    return;
+  }
+  const rescanBtn = e.target.closest(".icon-btn.rescan");
+  if(rescanBtn){ rescanOne(rescanBtn.dataset.key); return; }
+
+  const deleteBtn = e.target.closest(".icon-btn.delete");
+  if(deleteBtn){ deleteProduct(deleteBtn.dataset.key); return; }
+});
+
+document.getElementById("content").addEventListener("change", (e) => {
+  const input = e.target.closest(".tag-input");
+  if(!input) return;
+  const key = input.dataset.key;
+  if(RAW[key]) RAW[key].tag = input.value.trim();
+});
+
+// --- Onglet Dataset : parcours brut code-barres ↔ nom de produit ---
+let currentTab = "prices";
+const DATASET_DISPLAY_LIMIT = 200;
+
+function switchTab(tab){
+  currentTab = tab;
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  document.getElementById("panel-prices").classList.toggle("active", tab === "prices");
+  document.getElementById("panel-dataset").classList.toggle("active", tab === "dataset");
+  if(tab === "dataset") renderDatasetTab();
+}
+
+function updateDatasetStats(){
+  const el = document.getElementById("datasetStats");
+  if(!DATASET_LOADED){
+    el.textContent = "Aucun dataset chargé — importe-le avec le bouton ci-dessus.";
+    return;
+  }
+  el.textContent = `${DATASET_RECORDS.length} observations chargées. Tape un nom ou un code-barres pour parcourir la correspondance.`;
+}
+
+function renderDatasetTab(){
+  const wrap = document.getElementById("datasetTableWrap");
+  updateDatasetStats();
+  if(!DATASET_LOADED){ wrap.innerHTML = ""; return; }
+
+  const raw = document.getElementById("datasetSearch").value.trim();
+  if(raw === ""){
+    wrap.innerHTML = '<div class="ds-table"><div class="empty-state">Tape une recherche pour afficher des résultats (le dataset entier n\'est pas listé d\'un coup).</div></div>';
+    return;
+  }
+
+  const isCode = /^[0-9]{3,}$/.test(raw);
+  let matches;
+  if(isCode){
+    matches = DATASET_RECORDS.filter(r => r.code && r.code.includes(raw));
+  }else{
+    const q = stripAccents(raw.toLowerCase());
+    matches = DATASET_RECORDS.filter(r => stripAccents(r.name.toLowerCase()).includes(q));
+  }
+
+  const total = matches.length;
+  const shown = matches.slice(0, DATASET_DISPLAY_LIMIT);
+
+  document.getElementById("datasetStats").textContent =
+    `${total} correspondance(s)${total > shown.length ? ` — ${shown.length} affichée(s), affine ta recherche pour voir le reste` : ""}.`;
+
+  if(total === 0){
+    wrap.innerHTML = '<div class="ds-table"><div class="empty-state">Aucune correspondance pour cette recherche.</div></div>';
+    return;
+  }
+
+  const rowsHtml = shown.map(r => `
+    <div class="ds-row">
+      <span class="ds-code">${escapeHtml(r.code || "—")}</span>
+      <span class="ds-name">${escapeHtml(r.name)}${r.brands ? `<span class="ds-brand">${escapeHtml(r.brands)}</span>` : ""}</span>
+      <span class="ds-price">${fmtPrice(r.price, "") || "—"}${r.country ? ` · ${escapeHtml(r.country)}` : ""}</span>
+    </div>
+  `).join("");
+
+  wrap.innerHTML = `<div class="ds-table">${rowsHtml}</div>`;
+}
+
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+});
+
+let datasetSearchTimer = null;
+document.getElementById("datasetSearch").addEventListener("input", () => {
+  clearTimeout(datasetSearchTimer);
+  datasetSearchTimer = setTimeout(renderDatasetTab, 200);
+});
+
+buildChips();
+render();
+
+// tentative de chargement auto (fonctionne si servi via http://, pas file://)
+fetch("prix.json")
+  .then(r => { if(!r.ok) throw new Error(); return r.json(); })
+  .then(data => init(data, "prix.json"))
+  .catch(() => { /* pas de chargement auto possible : l'utilisateur importera à la main */ });
+</script>
+</body>
+</html>

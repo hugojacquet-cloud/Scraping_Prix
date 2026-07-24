@@ -1,0 +1,16 @@
+{
+  "tomate": {
+    "tag": "Tomate",
+    "id": "tomate",
+    "priceUnit": null,
+    "priceKg": 2.99,
+    "updatedAt": "2026-07-23"
+  },
+  "pain": {
+    "tag": "Pain",
+    "id": "pain",
+    "priceUnit": 1.15,
+    "priceKg": null,
+    "updatedAt": "2026-07-23"
+  }
+}
