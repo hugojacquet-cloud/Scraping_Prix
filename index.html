@@ -284,6 +284,126 @@ let EXPANDED_KEYS = new Set(); // clés dont le menu déroulant de correspondanc
 let DATASET_RECORDS = [];       // [{ name, price, currency, qty, qtyUnit, country }]
 let DATASET_TOKEN_INDEX = null; // Map<token, Set<recordIndex>>
 let DATASET_LOADED = false;
+let lastPrixSourceLabel = null;
+let lastDatasetFileName = null;
+
+// --- Persistance locale (IndexedDB) ---
+// Tout est en mémoire JS par défaut, donc perdu au rechargement de la page.
+// On sauvegarde automatiquement l'état (produits + dataset) dans IndexedDB
+// à chaque modification, et on le restaure tout seul au chargement.
+
+const DB_NAME = "releve-prix-db";
+const DB_VERSION = 1;
+const DB_STORE = "state";
+
+function dbOpen(){
+  return new Promise((resolve, reject) => {
+    if(!("indexedDB" in window)){ reject(new Error("IndexedDB indisponible")); return; }
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => { req.result.createObjectStore(DB_STORE); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbSet(key, value){
+  try{
+    const db = await dbOpen();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, "readwrite");
+      tx.objectStore(DB_STORE).put(value, key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    });
+  }catch(e){ console.error("Sauvegarde locale impossible :", e); return false; }
+}
+
+async function dbGet(key){
+  try{
+    const db = await dbOpen();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, "readonly");
+      const req = tx.objectStore(DB_STORE).get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }catch(e){ console.error("Lecture locale impossible :", e); return undefined; }
+}
+
+async function dbDelete(key){
+  try{
+    const db = await dbOpen();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, "readwrite");
+      tx.objectStore(DB_STORE).delete(key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    });
+  }catch(e){ return false; }
+}
+
+let persistPrixTimer = null;
+function persistPrixState(){
+  clearTimeout(persistPrixTimer);
+  persistPrixTimer = setTimeout(() => {
+    dbSet("prixState", {
+      RAW, PENDING, SELECTION, STATUS,
+      sourceLabel: lastPrixSourceLabel,
+      savedAt: new Date().toISOString()
+    });
+  }, 250); // regroupe les frappes rapides (édition de tag) en une seule écriture
+}
+
+async function persistDatasetState(fileName){
+  lastDatasetFileName = fileName || lastDatasetFileName;
+  const status = document.getElementById("refreshStatus");
+  const prevText = status.textContent;
+  status.textContent = prevText + " Sauvegarde locale du dataset…";
+  const ok = await dbSet("datasetState", {
+    records: DATASET_RECORDS,
+    fileName: lastDatasetFileName,
+    savedAt: new Date().toISOString()
+  });
+  status.textContent = ok
+    ? prevText + " Dataset sauvegardé localement (survivra à un rechargement)."
+    : prevText + " ⚠️ Sauvegarde locale du dataset impossible (trop volumineux pour ce navigateur) — il faudra le réimporter après un rechargement.";
+}
+
+async function restoreFromIndexedDB(){
+  try{
+    const saved = await dbGet("prixState");
+    if(saved && saved.RAW && Object.keys(saved.RAW).length){
+      RAW = saved.RAW;
+      PENDING = saved.PENDING || {};
+      SELECTION = saved.SELECTION || {};
+      STATUS = saved.STATUS || {};
+      lastPrixSourceLabel = saved.sourceLabel || null;
+      const when = saved.savedAt ? new Date(saved.savedAt).toLocaleString("fr-FR") : "";
+      updateStats();
+      updateFileStatus(`${Object.keys(RAW).length} produits restaurés automatiquement (session précédente${when ? ", " + when : ""}).`);
+      if(Object.keys(PENDING).length) document.getElementById("downloadBtn").style.display = "inline-block";
+    }
+  }catch(e){ console.error(e); }
+
+  try{
+    const saved = await dbGet("datasetState");
+    if(saved && Array.isArray(saved.records) && saved.records.length){
+      DATASET_RECORDS = [];
+      DATASET_TOKEN_INDEX = new Map();
+      for(const rec of saved.records) indexRecord(rec);
+      DATASET_LOADED = true;
+      lastDatasetFileName = saved.fileName || null;
+      document.getElementById("refreshBtn").disabled = false;
+      const when = saved.savedAt ? new Date(saved.savedAt).toLocaleString("fr-FR") : "";
+      document.getElementById("refreshStatus").textContent =
+        `Dataset restauré automatiquement : ${DATASET_RECORDS.length} observations (session précédente${when ? ", " + when : ""}).`;
+      updateDatasetStats();
+    }
+  }catch(e){ console.error(e); }
+
+  render();
+  if(currentTab === "dataset") renderDatasetTab();
+}
 
 function stripAccents(s){
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -399,6 +519,7 @@ async function loadDatasetFromFile(file){
   status.textContent = `Dataset chargé depuis ${file.name} : ${keptCount} observations indexées (sur ${recordCount} lignes).`;
   if(typeof updateDatasetStats === "function") updateDatasetStats();
   if(typeof currentTab !== "undefined" && currentTab === "dataset") renderDatasetTab();
+  persistDatasetState(file.name);
 }
 
 function median(arr){
@@ -488,6 +609,7 @@ function matchAllProducts(){
   `;
   render();
   document.getElementById("downloadBtn").style.display = "inline-block";
+  persistPrixState();
 }
 
 function rescanOne(key){
@@ -498,12 +620,14 @@ function rescanOne(key){
   if(!DATASET_LOADED){
     STATUS[key] = "error";
     render();
+    persistPrixState();
     return;
   }
   const countryFilter = document.getElementById("countrySelect").value;
   const records = findMatchingRecords(tag, countryFilter);
   applyResult(key, records);
   render();
+  persistPrixState();
 }
 
 function deleteProduct(key){
@@ -517,6 +641,7 @@ function deleteProduct(key){
   delete STATUS[key];
   updateStats();
   render();
+  persistPrixState();
 }
 
 function exportUpdated(){
@@ -565,8 +690,19 @@ function statusFlags(key){
   if(STATUS[key] === "empty") flags.push("empty");
   if(STATUS[key] === "error") flags.push("error");
   const old = RAW[key];
-  if(!PENDING[key] && old.priceKg == null && old.priceUnit == null) flags.push("missing");
-  if(old.priceKg == null || old.priceUnit == null) flags.push("unfilled");
+  const pending = PENDING[key];
+  if(!pending && old.priceKg == null && old.priceUnit == null) flags.push("missing");
+
+  // "unfilled" = un prix affiche réellement "vide" à l'écran : soit le produit
+  // n'a aucun prix du tout (les deux champs vides), soit un champ précis est
+  // vide alors qu'une correspondance a été trouvée pour ce champ. On ne flag
+  // PAS un champ juste parce que l'autre type de prix ne s'applique pas à ce
+  // produit (ex : un article vendu à l'unité n'aura jamais de prix au kg).
+  const bothEmpty = old.priceKg == null && old.priceUnit == null;
+  const kgVide = old.priceKg == null && pending && pending.priceKg != null;
+  const unitVide = old.priceUnit == null && pending && pending.priceUnit != null;
+  if(bothEmpty || kgVide || unitVide) flags.push("unfilled");
+
   return flags;
 }
 
@@ -718,22 +854,26 @@ function updateFileStatus(text){
 function init(data, sourceLabel){
   RAW = data;
   PENDING = {}; SELECTION = {}; STATUS = {}; MATCHED_SAMPLES = {}; EXPANDED_KEYS = new Set();
+  lastPrixSourceLabel = sourceLabel;
   updateStats();
   updateFileStatus(`${Object.keys(data).length} produits chargés depuis ${sourceLabel}.`);
   document.getElementById("downloadBtn").style.display = "none";
   document.getElementById("refreshSummary").classList.remove("show");
   render();
+  persistPrixState();
 }
 
 function clearAll(){
-  if(!confirm("Vider la liste actuelle ? (le fichier prix.json sur ton disque n'est pas modifié)")) return;
+  if(!confirm("Vider la liste actuelle ? (le fichier prix.json sur ton disque n'est pas modifié, mais la sauvegarde locale automatique sera effacée)")) return;
   RAW = {}; PENDING = {}; SELECTION = {}; STATUS = {}; MATCHED_SAMPLES = {}; EXPANDED_KEYS = new Set();
+  lastPrixSourceLabel = null;
   document.getElementById("fileInput").value = "";
   document.getElementById("downloadBtn").style.display = "none";
   document.getElementById("refreshSummary").classList.remove("show");
   updateStats();
   updateFileStatus('Aucun fichier chargé — clique sur "Importer prix.json".');
   render();
+  dbDelete("prixState");
 }
 
 document.getElementById("search").addEventListener("input", render);
@@ -767,6 +907,7 @@ document.getElementById("content").addEventListener("click", (e) => {
     SELECTION[key] = SELECTION[key] || {};
     SELECTION[key][field] = choice;
     render();
+    persistPrixState();
     return;
   }
   const toggle = e.target.closest(".match-toggle");
@@ -794,6 +935,7 @@ document.getElementById("content").addEventListener("click", (e) => {
     }
     EXPANDED_KEYS.delete(key);
     render();
+    persistPrixState();
     return;
   }
   const rescanBtn = e.target.closest(".icon-btn.rescan");
@@ -807,7 +949,10 @@ document.getElementById("content").addEventListener("change", (e) => {
   const input = e.target.closest(".tag-input");
   if(!input) return;
   const key = input.dataset.key;
-  if(RAW[key]) RAW[key].tag = input.value.trim();
+  if(RAW[key]){
+    RAW[key].tag = input.value.trim();
+    persistPrixState();
+  }
 });
 
 // --- Onglet Dataset : parcours brut code-barres ↔ nom de produit ---
@@ -886,21 +1031,31 @@ document.getElementById("datasetSearch").addEventListener("input", () => {
 buildChips();
 render();
 
-// tentative de chargement auto (fonctionne si servi via http://, pas file://)
-fetch("prix.json")
-  .then(r => { if(!r.ok) throw new Error(); return r.json(); })
-  .then(data => init(data, "prix.json"))
-  .catch(() => { /* pas de chargement auto possible : l'utilisateur importera à la main */ });
+(async function bootstrap(){
+  // 1) restaure automatiquement produits + dataset depuis la sauvegarde locale
+  await restoreFromIndexedDB();
 
-// Enregistre le service worker (nécessaire sur Android/Chrome pour que le
-// navigateur propose "Installer l'application" et pas juste un raccourci).
-if("serviceWorker" in navigator){
-  window.addEventListener("load", () => {
+  // 2) si rien n'a été restauré, tente le chargement auto de prix.json
+  //    (fonctionne si servi via http(s)://, pas file://)
+  if(Object.keys(RAW).length === 0){
+    try{
+      const r = await fetch("prix.json");
+      if(r.ok){
+        const data = await r.json();
+        init(data, "prix.json");
+      }
+    }catch(e){ /* pas de chargement auto possible : l'utilisateur importera à la main */ }
+  }
+
+  // 3) enregistre le service worker (nécessaire sur Android/Chrome pour que
+  //    le navigateur propose "Installer l'application" et pas juste un raccourci)
+  if("serviceWorker" in navigator){
     navigator.serviceWorker.register("sw.js").catch(() => {
       /* si servi en file:// ou sans HTTPS, l'enregistrement échoue silencieusement */
     });
-  });
-}
+  }
+})();
+
 </script>
 </body>
 </html>
