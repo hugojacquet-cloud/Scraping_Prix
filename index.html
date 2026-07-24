@@ -2,8 +2,21 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Relevé de prix — Carnet</title>
+
+<!-- PWA : permet l'installation et le mode plein écran (sans barre Safari/Chrome) -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#202920">
+<meta name="mobile-web-app-capable" content="yes">
+
+<!-- iOS : ouvre en plein écran quand ajouté à l'écran d'accueil -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Prix">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png" type="image/png">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -878,6 +891,16 @@ fetch("prix.json")
   .then(r => { if(!r.ok) throw new Error(); return r.json(); })
   .then(data => init(data, "prix.json"))
   .catch(() => { /* pas de chargement auto possible : l'utilisateur importera à la main */ });
+
+// Enregistre le service worker (nécessaire sur Android/Chrome pour que le
+// navigateur propose "Installer l'application" et pas juste un raccourci).
+if("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {
+      /* si servi en file:// ou sans HTTPS, l'enregistrement échoue silencieusement */
+    });
+  });
+}
 </script>
 </body>
 </html>
