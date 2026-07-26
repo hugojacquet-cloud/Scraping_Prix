@@ -204,6 +204,7 @@
     <h1>Relevé de prix alimentaires</h1>
     <p class="subtitle">Correspondance via le dataset GitHub webtruffle/retail-product-catalog-prices (snapshot quotidien), à partir du champ "tag" de chaque produit.</p>
     <div class="meta-row">
+      <div class="meta-item" id="statFilterWrap" style="display:none;"><span class="k">Filtre actif</span><span class="v" id="statFilter">—</span></div>
       <div class="meta-item"><span class="k">Produits chargés</span><span class="v" id="statCount">—</span></div>
       <div class="meta-item"><span class="k">Prix renseignés</span><span class="v" id="statFilled">—</span></div>
       <div class="meta-item"><span class="k">Dernière mise à jour</span><span class="v" id="statUpdated">—</span></div>
@@ -268,7 +269,7 @@
   Onglet "Mes produits" : fait correspondre tes tags aux prix du dataset. Onglet "Dataset" : parcours directement la correspondance code-barres ↔ nom de produit telle qu'elle existe dans le fichier importé.
   Données : webtruffle/retail-product-catalog-prices (ODbL 1.0, Open Food Facts / Open Prices / OpenStreetMap).
   <br>
-  <span id="buildMarker" style="opacity:.6;">build : 2026-07-26-c · sw v3</span>
+  <span id="buildMarker" style="opacity:.6;">build : 2026-07-26-d · sw v3</span>
 </footer>
 
 <script>
@@ -705,15 +706,18 @@ function statusFlags(key){
 function render(){
   const content = document.getElementById("content");
   const totalLoaded = Object.keys(RAW).length;
+  const filterWrap = document.getElementById("statFilterWrap");
 
   if(totalLoaded === 0){
     content.innerHTML = '<div class="rows"><div class="empty-state">Aucun produit chargé. Importe un fichier prix.json pour commencer.</div></div>';
+    filterWrap.style.display = "none";
     return;
   }
 
   const q = document.getElementById("search").value.trim().toLowerCase();
   const sortMode = document.getElementById("sortSelect").value;
   const activeChips = [...document.querySelectorAll(".chip.active")].map(c => c.dataset.status);
+  const filterActive = q !== "" || activeChips.length > 0;
 
   let entries = Object.entries(RAW).map(([key, v]) => ({ key, ...v }));
 
@@ -724,6 +728,13 @@ function render(){
     const matchesChips = activeChips.length === 0 || activeChips.some(c => flags.includes(c));
     return matchesSearch && matchesChips;
   });
+
+  if(filterActive){
+    filterWrap.style.display = "";
+    document.getElementById("statFilter").textContent = `${entries.length} / ${totalLoaded}`;
+  } else {
+    filterWrap.style.display = "none";
+  }
 
   const sorters = {
     name: (a,b) => (a.tag||a.key).localeCompare(b.tag||b.key, 'fr'),
