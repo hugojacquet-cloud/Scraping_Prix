@@ -1,4 +1,7 @@
-const CACHE_NAME = "releve-prix-v1";
+// v2 : passage en stratégie "réseau d'abord" — corrige le problème où une
+// mise à jour de index.html sur GitHub n'était pas prise en compte tant que
+// le cache-first servait l'ancienne version.
+const CACHE_NAME = "releve-prix-v2";
 const CORE_ASSETS = [
   "./index.html",
   "./manifest.json",
@@ -22,25 +25,24 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Cache-first for the app shell, network passthrough for everything else
-// (so a locally imported prix.json / dataset file is never intercepted).
+// Réseau d'abord pour l'app shell : toujours essayer de récupérer la version
+// la plus récente en ligne, et ne se rabattre sur le cache que si le réseau
+// échoue (mode hors-ligne). Le cache est rafraîchi à chaque requête réussie.
+// Tout le reste (import local de prix.json / dataset) n'est pas intercepté.
 self.addEventListener("fetch", (event) => {
+  if(event.request.method !== "GET") return;
+
   const url = new URL(event.request.url);
   const isCoreAsset = CORE_ASSETS.some((a) => url.pathname.endsWith(a.replace("./", "")));
   if (!isCoreAsset) return;
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return (
-        cached ||
-        fetch(event.request)
-          .then((res) => {
-            const resClone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
-            return res;
-          })
-          .catch(() => cached)
-      );
-    })
+    fetch(event.request)
+      .then((res) => {
+        const resClone = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
+        return res;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
