@@ -1,17 +1,21 @@
-// v2 : passage en stratégie "réseau d'abord" — corrige le problème où une
-// mise à jour de index.html sur GitHub n'était pas prise en compte tant que
-// le cache-first servait l'ancienne version.
-const CACHE_NAME = "releve-prix-v2";
-const CORE_ASSETS = [
-  "./index.html",
+// v3 : le service worker ne touche plus jamais à index.html (ni à aucune
+// requête de navigation). Il ne fait que mettre en cache manifest.json et
+// les icônes, pour l'icône/le splash screen hors-ligne. La page principale
+// passe toujours par le réseau normal du navigateur, comme un site sans
+// service worker — ça élimine complètement le risque de rester bloqué sur
+// une ancienne version.
+const CACHE_NAME = "releve-prix-v3";
+const STATIC_ASSETS = [
   "./manifest.json",
   "./icon-192.png",
-  "./icon-512.png"
+  "./icon-512.png",
+  "./icon-512-maskable.png",
+  "./apple-touch-icon.png"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS)).catch(() => {})
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)).catch(() => {})
   );
   self.skipWaiting();
 });
@@ -25,16 +29,15 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Réseau d'abord pour l'app shell : toujours essayer de récupérer la version
-// la plus récente en ligne, et ne se rabattre sur le cache que si le réseau
-// échoue (mode hors-ligne). Le cache est rafraîchi à chaque requête réussie.
-// Tout le reste (import local de prix.json / dataset) n'est pas intercepté.
 self.addEventListener("fetch", (event) => {
   if(event.request.method !== "GET") return;
+  // Jamais d'interception d'une requête de navigation (la page HTML elle-même) :
+  // toujours du réseau direct, jamais de version mise en cache.
+  if(event.request.mode === "navigate") return;
 
   const url = new URL(event.request.url);
-  const isCoreAsset = CORE_ASSETS.some((a) => url.pathname.endsWith(a.replace("./", "")));
-  if (!isCoreAsset) return;
+  const isStaticAsset = STATIC_ASSETS.some((a) => url.pathname.endsWith(a.replace("./", "")));
+  if(!isStaticAsset) return;
 
   event.respondWith(
     fetch(event.request)

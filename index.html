@@ -267,6 +267,8 @@
   puis importe-le ici avec "Importer le dataset" — tout est ensuite lu et indexé localement, sans réseau.
   Onglet "Mes produits" : fait correspondre tes tags aux prix du dataset. Onglet "Dataset" : parcours directement la correspondance code-barres ↔ nom de produit telle qu'elle existe dans le fichier importé.
   Données : webtruffle/retail-product-catalog-prices (ODbL 1.0, Open Food Facts / Open Prices / OpenStreetMap).
+  <br>
+  <span id="buildMarker" style="opacity:.6;">build : 2026-07-26-c · sw v3</span>
 </footer>
 
 <script>
@@ -1043,10 +1045,14 @@ render();
 
   // 3) enregistre le service worker (nécessaire sur Android/Chrome pour que
   //    le navigateur propose "Installer l'application" et pas juste un raccourci)
+  //    + force une vérification de mise à jour immédiate (au lieu d'attendre
+  //    le cycle par défaut du navigateur, qui peut prendre jusqu'à 24h).
   if("serviceWorker" in navigator){
-    navigator.serviceWorker.register("sw.js").catch(() => {
-      /* si servi en file:// ou sans HTTPS, l'enregistrement échoue silencieusement */
-    });
+    navigator.serviceWorker.register("sw.js")
+      .then((reg) => reg.update().catch(() => {}))
+      .catch(() => {
+        /* si servi en file:// ou sans HTTPS, l'enregistrement échoue silencieusement */
+      });
   }
 })();
 
